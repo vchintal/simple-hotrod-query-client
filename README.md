@@ -6,4 +6,6 @@
 2. Run `mvn clean package` in the root folder of the project
 3. Run the project with the following command from the root folder :
 
-`java -cp target/simple-hotrod-query-client-jar-with-dependencies.jar org.everythingjboss.jdg.SimpleHotRodQueryClient`
+```sh
+java -cp target/simple-hotrod-query-client-jar-with-dependencies.jar org.everythingjboss.jdg.SimpleHotRodQueryClient
+```
