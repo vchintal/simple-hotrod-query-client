@@ -1,5 +1,7 @@
 package org.everythingjboss.jdg.domain;
 
+import java.util.ArrayList;
+
 import org.infinispan.protostream.annotations.ProtoDoc;
 import org.infinispan.protostream.annotations.ProtoField;
 
@@ -10,20 +12,23 @@ public class Person {
     private Long id;
     private String firstName;
     private String lastName;
+    private ArrayList<String> nicknames;
+    
     private int age;
 
     public Person() {
         
     }
     
-    public Person(Long id, String firstName, String lastName, int age) {
+    public Person(Long id, String firstName, String lastName, ArrayList<String> nicknames, int age) {
         this.age = age;
         this.firstName = firstName;
         this.lastName = lastName;
+        this.nicknames = nicknames;
         this.id = id;
     }
     
-    @ProtoDoc("@IndexedField")
+    @ProtoDoc("@Field")
     @ProtoField(number = 1)
     public Long getId() {
         return id;
@@ -33,7 +38,7 @@ public class Person {
         this.id = id;
     }
 
-    @ProtoDoc("@IndexedField")
+    @ProtoDoc("@Field(index=Index.YES, analyze=Analyze.NO)")
     @ProtoField(number = 2)
     public String getFirstName() {
         return firstName;
@@ -43,7 +48,7 @@ public class Person {
         this.firstName = firstName;
     }
 
-    @ProtoDoc("@IndexedField")
+    @ProtoDoc("@Field(index=Index.YES, analyze=Analyze.NO)")
     @ProtoField(number = 3)
     public String getLastName() {
         return lastName;
@@ -53,7 +58,7 @@ public class Person {
         this.lastName = lastName;
     }
 
-    @ProtoDoc("@IndexedField")
+    @ProtoDoc("@Field(index=Index.YES)")
     @ProtoField(number = 4, required = true)
     public int getAge() {
         return age;
@@ -63,6 +68,16 @@ public class Person {
         this.age = age;
     }
     
+    public ArrayList<String>  getNicknames() {
+        return nicknames;
+    }
+
+    @ProtoDoc("@Field(index=Index.YES)")
+    @ProtoField(number = 5)
+    public void setNicknames(ArrayList<String> nicknames) {
+        this.nicknames = nicknames;
+    }
+
     public String toString() {
         Gson gson = new Gson();
         return gson.toJson(this);

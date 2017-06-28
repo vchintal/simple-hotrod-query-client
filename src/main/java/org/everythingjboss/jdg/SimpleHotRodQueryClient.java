@@ -1,8 +1,13 @@
 package org.everythingjboss.jdg;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
+import java.util.stream.IntStream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.everythingjboss.jdg.domain.Person;
 import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.client.hotrod.RemoteCacheManager;
@@ -19,55 +24,66 @@ import org.infinispan.query.remote.client.ProtobufMetadataManagerConstants;
 
 public class SimpleHotRodQueryClient {
 
-    public static void main(String[] args) throws ProtoSchemaBuilderException,
-        IOException {
-        
-        // Build the cache configuration and instantiate a remote cache  
-        Configuration remoteConfig = new ConfigurationBuilder()
-                .addServers("127.0.0.1:11222")
-                .marshaller(new ProtoStreamMarshaller())
-                .build();
-        RemoteCacheManager remoteCacheManager = new RemoteCacheManager(remoteConfig);
-        RemoteCache<Long, Person> cache = remoteCacheManager.getCache("default");
+	public static final Logger logger = LogManager.getLogger(SimpleHotRodQueryClient.class);
 
-        // Set ProtoStreamMarshaller as the default marshaller for serialization
-        SerializationContext ctx = ProtoStreamMarshaller
-                .getSerializationContext(remoteCacheManager);
+	public static void main(String[] args) throws ProtoSchemaBuilderException, IOException {
 
-        // Generate the 'person.proto' schema file based on the annotations on
-        // Person class and register it with the SerializationContext of the
-        // client
-        ProtoSchemaBuilder protoSchemaBuilder = new ProtoSchemaBuilder();
-        String personSchemaFile = protoSchemaBuilder.fileName("person.proto")
-                .packageName("org.everythingjboss.jdg.domain")
-                .addClass(Person.class)
-                .build(ctx);
+		Properties props = System.getProperties();
 
-        // Register the schemas with the JDG server by placing the schema into a 
-        // special cache ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME
-        RemoteCache<String, String> metadataCache = remoteCacheManager
-                .getCache(ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
-        metadataCache.put("person.proto", personSchemaFile);
-        String errors = metadataCache
-                .get(ProtobufMetadataManagerConstants.ERRORS_KEY_SUFFIX);
-        if (errors != null) {
-            throw new IllegalStateException("Protobuf schema file contain errors:\n" + errors);
-        }
+		Boolean skipInserts = props.containsKey("skipInserts");
+		Boolean skipProtobuf = props.containsKey("skipProtobuf");
 
-        // Generate entries and place them in the remote cache
-        Person p1 = new Person(new Long(1), "Bill", "Clinton", 69);
-        Person p2 = new Person(new Long(2), "Hillary", "Clinton", 67);
-        cache.put(p1.getId(), p1);
-        cache.put(p2.getId(), p2);
+		logger.info("skipInserts="+skipInserts);
+		logger.info("skipProtobuf="+skipProtobuf);
 
-        // Query for the remote cache for Person instances where age > 68
-        QueryFactory qf = Search.getQueryFactory(cache);
-        Query query = qf.from(Person.class)
-                .having("age")
-                .gt(68)
-                .toBuilder()
-                .build();
-        List<Person> persons = query.list();
-        persons.stream().forEach(System.out::println);
-    }
+		// Build the cache configuration and instantiate a remote cache
+		Configuration remoteConfig = new ConfigurationBuilder().addServers("127.0.0.1:11222")
+				.marshaller(new ProtoStreamMarshaller()).build();
+		RemoteCacheManager remoteCacheManager = new RemoteCacheManager(remoteConfig);
+		RemoteCache<Long, Person> cache = remoteCacheManager.getCache("indexedCache");
+
+		// Set ProtoStreamMarshaller as the default marshaller for serialization
+		SerializationContext ctx = ProtoStreamMarshaller.getSerializationContext(remoteCacheManager);
+
+		// Generate the 'person.proto' schema file based on the annotations on
+		// Person class and register it with the SerializationContext of the
+		// client
+		ProtoSchemaBuilder protoSchemaBuilder = new ProtoSchemaBuilder();
+		String personSchemaFile = protoSchemaBuilder.fileName("person.proto")
+				.packageName("org.everythingjboss.jdg.domain").addClass(Person.class).build(ctx);
+
+		if (!skipProtobuf) {
+			// Register the schemas with the JDG server by placing the schema
+			// into a
+			// special cache
+			// ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME
+			RemoteCache<String, String> metadataCache = remoteCacheManager
+					.getCache(ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+			metadataCache.put("person.proto", personSchemaFile);
+			String errors = metadataCache.get(ProtobufMetadataManagerConstants.ERRORS_KEY_SUFFIX);
+			if (errors != null) {
+				throw new IllegalStateException("Protobuf schema file contain errors:\n" + errors);
+			}
+		} else logger.info("Skipping Protobuf publishing");
+
+		if (!skipInserts) {
+			logger.info("Putting entries into the cache");
+
+			IntStream.rangeClosed(1, 100).forEach(i -> {
+				Person p = new Person(new Long(i), "fn" + i, "ln" + i, new ArrayList<String>(), 15 + i);
+				cache.put(p.getId(), p);
+			});
+
+			logger.info("Done putting entries");
+		} else logger.info("Skipping priming the cache with sample dataset");
+
+		// Query for the remote cache for Person instances where age > 68
+		QueryFactory qf = Search.getQueryFactory(cache);
+		Query query = qf.from(Person.class).having("lastName").like("%3%").build();
+
+		List<Person> persons = query.list();
+		persons.stream().forEach(System.out::println);
+		
+		remoteCacheManager.stop();
+	}
 }
